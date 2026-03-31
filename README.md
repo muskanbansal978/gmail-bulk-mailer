@@ -9,8 +9,9 @@ Sends **50 job application emails per day** (Mon–Sat), distributed across 9:30
 - GitHub Actions triggers the script **5 times a day**, Mon–Sat
 - Each run sends **10 emails** → 50 total per day
 - Progress is saved in `mailer_state.json` (committed back to the repo after each run)
-- Emails are read from an Excel file in `Helper_Files/` with columns: `Email`, `Author`, `Role Title`
-- Your resume PDF from `Helper_Files/` is attached to every email
+- Emails are read from an Excel file with columns: `Email`, `Author`, `Role Title`
+- Your resume PDF is attached to every email
+- Helper files (Excel + resume) live in a **separate private repo** and are fetched at runtime — never exposed in this repo
 
 ```
 Run 1 — 09:30 IST → emails 1–10
@@ -25,35 +26,76 @@ Run 5 — 14:18 IST → emails 41–50
 
 ## Setup
 
-### 1. Fork / clone this repo (make it private)
+### 1. Create this repo (gmail-bulk-mailer)
 
-> Keep the repo **private** — it contains your mailing list and resume.
+```bash
+git init
+git add .
+git commit -m "initial commit"
+git remote add origin https://github.com/YOUR_USERNAME/gmail-bulk-mailer.git
+git branch -M main
+git push -u origin main
+```
 
-### 2. Add your files
+> Make the repo **private**.
 
-Place the following in `Helper_Files/`:
-- Your mailing list: `your_list.xlsx` with columns `Email`, `Author`, `Role Title`
-- Your resume: `Your_Resume.pdf`
+---
 
-### 3. Add GitHub Secrets
+### 2. Create a separate private repo for Helper Files
 
-Go to repo **Settings → Secrets and variables → Actions → New repository secret** and add:
+Go to [github.com/new](https://github.com/new) → name `gmail-mailer-assets` → **Private** → no README → Create
 
-| Secret | Value |
-|---|---|
-| `GMAIL_USER` | your Gmail address |
-| `GMAIL_APP_PASS` | Gmail App Password (see below) |
-| `EXCEL_FILE` | `Helper_Files/your_list.xlsx` |
-| `RESUME_PATH` | `Helper_Files/Your_Resume.pdf` |
+Then push your Excel and resume there:
 
-### 4. Generate a Gmail App Password
+```bash
+cd Helper_Files
+git init
+git add .
+git commit -m "initial"
+git remote add origin https://github.com/YOUR_USERNAME/gmail-mailer-assets.git
+git branch -M main
+git push -u origin main
+```
+
+Your Excel file must have these columns: `Email`, `Author`, `Role Title`
+
+---
+
+### 3. Generate a Gmail App Password
 
 1. Go to your Google Account → **Security**
 2. Enable **2-Step Verification** (required)
 3. Search **"App passwords"** → create one → copy the 16-character code
-4. Use that as `GMAIL_APP_PASS`
 
-### 5. Test before going live
+---
+
+### 4. Create a Personal Access Token (PAT)
+
+This lets the workflow fetch files from `gmail-mailer-assets` at runtime.
+
+1. GitHub → profile **Settings → Developer settings → Personal access tokens → Tokens (classic)**
+2. Click **Generate new token**
+3. Name: `mailer-assets-access`, Expiration: 1 year, Scope: check only `repo`
+4. Copy the token
+
+---
+
+### 5. Add secrets to gmail-bulk-mailer
+
+Go to `gmail-bulk-mailer` repo → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Value |
+|---|---|
+| `GMAIL_USER` | your Gmail address |
+| `GMAIL_APP_PASS` | the App Password from step 3 |
+| `EXCEL_FILE` | `Helper_Files/your_list.xlsx` |
+| `RESUME_PATH` | `Helper_Files/Your_Resume.pdf` |
+| `ASSETS_PAT` | the PAT from step 4 |
+| `ASSETS_REPO` | `YOUR_USERNAME/gmail-mailer-assets` |
+
+---
+
+### 6. Test before going live
 
 ```bash
 pip install -r requirements.txt
@@ -62,17 +104,36 @@ python dry_run.py
 
 Fix any ❌ errors shown. It verifies credentials, Excel columns, resume path, and previews the email.
 
-### 6. Push to GitHub — it runs automatically
+---
 
-Once secrets are set and the repo is pushed, GitHub Actions handles everything. No terminal to keep open, no cron to configure.
+### 7. Trigger a manual test run
+
+Go to `gmail-bulk-mailer` → **Actions → Gmail Bulk Mailer → Run workflow**
+
+Check that 10 emails are sent and `mailer_state.json` is committed back automatically.
+
+---
+
+## Updating Helper Files
+
+When your mailing list or resume changes:
+
+```bash
+cd /path/to/Helper_Files
+git add .
+git commit -m "update mailing list"
+git push
+```
+
+The next scheduled run picks up the latest files automatically. No secrets to update.
 
 ---
 
 ## Resetting for a new mailing list
 
-1. Replace the Excel file in `Helper_Files/`
-2. Update the `EXCEL_FILE` secret if the filename changed
-3. Delete `mailer_state.json` from the repo (or set `next_index` and `total_sent` to `0`)
+1. Push the new Excel file to `gmail-mailer-assets`
+2. Update `EXCEL_FILE` secret if the filename changed
+3. Delete `mailer_state.json` from the `gmail-bulk-mailer` repo (or set `next_index` and `total_sent` to `0`)
 4. The next scheduled run picks up from row 1
 
 ---
@@ -84,7 +145,6 @@ Once secrets are set and the repo is pushed, GitHub Actions handles everything. 
 | `email_scheduler.py` | Core script — sends one chunk of emails per run |
 | `config.py` | All settings — reads from environment variables |
 | `dry_run.py` | Validates setup without sending real emails |
-| `Helper_Files/` | Your Excel mailing list and resume PDF |
 | `.github/workflows/mailer.yml` | GitHub Actions schedule |
 | `mailer_state.json` | Auto-created — tracks send progress |
 | `mailer.log` | Auto-created — full send log |
