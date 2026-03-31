@@ -29,6 +29,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Checkout Helper Files
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.ASSETS_REPO }}
+          token: ${{ secrets.ASSETS_PAT }}
+          path: Helper_Files
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
