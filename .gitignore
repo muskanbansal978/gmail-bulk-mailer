@@ -1,0 +1,5 @@
+mailer.log
+__pycache__/
+*.pyc
+.env
+Helper_Files
